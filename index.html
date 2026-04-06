@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Geocolonias de Rutas - Jesus Fonseca</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/styles.css">
+    <script type="importmap">
+    {
+      "imports": {
+        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.38.0"
+      }
+    }
+    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+    <div id="loader" class="loader-overlay">
+        <svg class="pl" width="240" height="240" viewBox="0 0 240 240">
+            <circle class="pl__ring pl__ring--a" cx="120" cy="120" r="105" fill="none" stroke="#000" stroke-width="20" stroke-dasharray="0 660" stroke-dashoffset="-330" stroke-linecap="round"></circle>
+            <circle class="pl__ring pl__ring--b" cx="120" cy="120" r="35" fill="none" stroke="#000" stroke-width="20" stroke-dasharray="0 220" stroke-dashoffset="-110" stroke-linecap="round"></circle>
+            <circle class="pl__ring pl__ring--c" cx="85" cy="120" r="70" fill="none" stroke="#000" stroke-width="20" stroke-dasharray="0 440" stroke-linecap="round"></circle>
+            <circle class="pl__ring pl__ring--d" cx="155" cy="120" r="70" fill="none" stroke="#000" stroke-width="20" stroke-dasharray="0 440" stroke-linecap="round"></circle>
+        </svg>
+    </div>
+
+    <header class="bg-white border-b border-slate-200 shadow-sm z-20 flex-shrink-0 px-4 md:px-5 py-2">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
+                <div class="p-1.5 bg-indigo-600 rounded-xl shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1>Geocolonias</h1>
+                    <p class="texto-clamp text-slate-500 font-medium uppercase tracking-wider">departamento de operaciones</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 justify-between w-full header-actions">
+                <div class="flex flex-wrap gap-2 items-center header-actions-left">
+                    <button id="btnSatellite" class="google-layer-btn active header-action-btn" onclick="window.changeGoogleLayer('satellite')">🛰️ Satélite</button>
+                    <button id="btnStreet" class="google-layer-btn header-action-btn" onclick="window.changeGoogleLayer('street')">🗺️ Calles</button>
+                    <button id="btnTerrain" class="google-layer-btn header-action-btn" onclick="window.changeGoogleLayer('terrain')">⛰️ Terreno</button>
+                </div>
+
+                <div class="flex flex-wrap gap-2 items-center header-menu-group">
+    <input type="checkbox" id="toggleGeofences" checked class="hidden">
+
+    <input type="file" id="kmlInput" accept=".kml,.xml" class="hidden">
+    <label for="kmlInput" class="header-action-btn cursor-pointer bg-white border border-slate-200 hover:border-indigo-400 text-slate-700 px-3 py-1.5 rounded-xl texto-clamp font-bold transition-all flex items-center gap-2 shadow-sm">
+        <span id="kmlStatus" class="w-2 h-2 rounded-full bg-slate-300"></span> CARGAR KML
+    </label>
+
+    <input type="file" id="excelInput" accept=".xlsx,.xls" class="hidden">
+    <label for="excelInput" class="header-action-btn cursor-pointer bg-white border border-slate-200 hover:border-emerald-400 text-slate-700 px-3 py-1.5 rounded-xl texto-clamp font-bold transition-all flex items-center gap-2 shadow-sm">
+        <span id="excelStatus" class="w-2 h-2 rounded-full bg-slate-300"></span> CARGAR EXCEL
+    </label>
+      
+    </div>
+    
+    <button class="header-action-btn btn-toggle-sidebar" id="toggleSidebarBtn">☰</button>
+</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Overlay para móvil -->
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
+    <div class="layout-principal">
+        
+        <div id="sidebarPanel" class="sidebar-panel">
+            <div class="bg-white p-3 rounded-xl shadow-md border border-slate-100 flex-shrink-0">
+                <div class="relative mb-2">
+                    <input type="text" id="mainSearch" placeholder="Busca Ruta o Colonia..." 
+                        class="w-full pl-9 pr-3 py-2 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-lg outline-none transition-all uppercase font-bold text-sm text-slate-800">
+                    <div class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                </div>
+                
+                <div class="grid-automatico">
+                    <button id="btnBuscar" class="uiverse-btn bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-bold transition-all shadow-md uppercase tracking-wide texto-clamp">
+                        Buscar
+                    </button>
+                    <button id="btnLimpiar" class="uiverse-btn bg-slate-500 hover:bg-slate-600 text-white py-2 rounded-lg font-bold transition-all shadow-md uppercase tracking-wide texto-clamp">
+                        Limpiar
+                    </button>
+                    <button id="btnCompletar" class="uiverse-btn bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg font-bold transition-all shadow-md uppercase tracking-wide texto-clamp flex items-center justify-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        Completar
+                    </button>
+                    <button id="btnExportar" class="uiverse-btn bg-amber-600 hover:bg-amber-700 text-white py-2 rounded-lg font-bold transition-all shadow-md uppercase tracking-wide texto-clamp flex items-center justify-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Exportar
+                    </button>
+                    <button id="btnGestionar" class="uiverse-btn bg-slate-800 hover:bg-black text-white py-2 rounded-lg font-bold transition-all shadow-md uppercase tracking-wide texto-clamp flex items-center justify-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        Gestionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-md border border-slate-100 flex flex-col overflow-hidden flex-1 min-h-0 max-h-64">
+                <div class="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                    <div>
+                        <h2 class="font-black text-slate-500 uppercase titulo-clamp tracking-wider">Resultados de Colonias</h2>
+                        <p id="searchType" class="texto-clamp text-indigo-600 font-bold mt-0.5"></p>
+                    </div>
+                    <span id="colCount" class="bg-indigo-100 text-indigo-700 text-xs font-black px-2 py-1 rounded-full">0</span>
+                </div>
+
+                <div class="px-3 py-2 border-b border-slate-100">
+                    <div class="relative">
+                        <input type="text" id="resultadosSearch" placeholder="Filtrar colonia..."
+                            class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 focus:border-indigo-400 rounded-lg outline-none text-xs font-bold uppercase text-slate-700">
+                        <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                    </div>
+                </div>
+
+                <div id="resultadosList" class="flex-1 overflow-y-auto custom-scrollbar">
+                    <div id="resultadosEmptyMsg" class="w-full text-center py-12 text-slate-400 text-xs">
+                        Ingresa un término para ver las rutas asignadas.
+                    </div>
+                </div>
+            </div>
+
+            <div id="geocercasPanel" class="bg-white rounded-xl shadow-md border border-slate-100 flex flex-col overflow-hidden flex-1 min-h-0 max-h-64">
+                <div class="flex flex-col px-3 py-2 border-b border-slate-100">
+    <!-- Título centrado -->
+    <div class="text-center mb-2">
+        <h2 class="font-black text-slate-500 uppercase titulo-clamp tracking-wider">Geocercas Cargadas</h2>
+        <p id="geocercaCount" class="texto-clamp text-indigo-600 font-bold mt-0.5"></p>
+        
+    </div>
+    
+    <!-- Botones centrados -->
+    <div class="flex justify-center gap-3">
+        <button id="btnTodasGeocercas" class="geo-toggle-btn texto-clamp font-bold uppercase px-4 py-2 min-w-[100px]">✓ Todas</button>
+        <button id="btnNingunaGeocercas" class="geo-toggle-btn texto-clamp font-bold uppercase px-4 py-2 min-w-[100px]">✗ Ninguna</button>
+    </div>
+</div>
+
+                <div class="px-3 py-2 border-b border-slate-100">
+                    <div class="relative">
+                        <input type="text" id="geocercaSearch" placeholder="Filtrar geocerca..."
+                            class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 focus:border-indigo-400 rounded-lg outline-none text-xs font-bold uppercase text-slate-700">
+                        <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                    </div>
+                </div>
+
+                <div id="geocercasList" class="flex-1 overflow-y-auto custom-scrollbar"></div>
+            </div>
+        </div>
+
+        <div class="mapa-container">
+            <div id="map" class="shadow-xl border-4 border-white rounded-xl"></div>
+            
+            <div id="globalEditor" class="hidden absolute top-4 left-4 z-[1000] w-72 bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-white flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-black text-slate-900 text-xs uppercase">Editor de Asignación</h3>
+                    <button id="btnCerrarEditor" class="text-slate-400 hover:text-red-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                    </button>
+                </div>
+                <div id="editorContent" class="text-xs text-slate-500 italic text-center py-3">Haz clic en el icono de lápiz de una colonia para editarla aquí.</div>
+                <div id="editorForm" class="hidden space-y-3">
+                    <div><label class="text-[9px] font-black text-slate-500 uppercase ml-1">Colonia</label><input type="text" id="editNombre" class="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:border-indigo-500 text-sm font-bold"></div>
+                    <div><label class="text-[9px] font-black text-slate-500 uppercase ml-1">Ruta Destino</label><input type="text" id="editRuta" class="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:border-indigo-500 text-sm font-bold uppercase"></div>
+                    <div><label class="text-[9px] font-black text-slate-500 uppercase ml-1">Turno</label><select id="editTurno" class="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:border-indigo-500 text-sm font-bold"><option value="Matutino">Matutino</option><option value="Vespertino">Vespertino</option><option value="Sin turno">Sin turno</option></select></div>
+                    <button id="btnGuardarEdicion" class="w-full bg-emerald-500 text-white py-2 rounded-lg font-bold uppercase text-xs">Guardar Cambios</button>
+                </div>
+            </div>
+
+            <div id="passwordModal" class="password-modal hidden">
+                <div class="bg-white rounded-xl shadow-2xl p-6 w-80">
+                    <h3 class="font-black text-slate-800 text-lg mb-4">🔐 Autorización Requerida</h3>
+                    <p class="text-sm text-slate-600 mb-4">Ingresa la contraseña de administrador para exportar las colonias de esta ruta.</p>
+                    <input type="password" id="passwordInput" placeholder="Contraseña" class="w-full p-3 border border-slate-200 rounded-lg mb-4 focus:border-indigo-500 outline-none">
+                    <div class="flex gap-3">
+                        <button id="btnCancelarExportar" class="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg font-bold">Cancelar</button>
+                        <button id="btnConfirmarExportar" class="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-bold">Exportar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="loadingOverlay" class="hidden absolute inset-0 bg-white/70 z-[1001] rounded-xl flex items-center justify-center backdrop-blur-sm">
+                <div class="bg-white p-4 rounded-xl shadow-2xl flex flex-col items-center">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-100 h-8 w-8 mb-2"></div>
+                    <p class="text-slate-800 font-bold text-xs uppercase" id="loadingText">Procesando...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-white border-t border-slate-200 py-2 px-4 text-center flex-shrink-0">
+        <p class="texto-clamp text-slate-400 uppercase tracking-wider">
+            desarrollado por 
+            <span id="firmaOfuscada" class="font-bold text-indigo-500 cursor-help">Ing. Jesus Fonseca</span>
+        </p>
+    </footer>
+
+    <script src="js/utils.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/geofences.js"></script>
+    <script src="js/search.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/geocoding.js"></script>
+    <script src="js/kml.js"></script>
+    <script src="js/excel.js"></script>
+    <script src="js/editor.js"></script>
+    <script type="module" src="js/main.js"></script>
+    <script>
+        function hideStartupLoaderFallback() {
+            const loader = document.getElementById('loader');
+            if (!loader) return;
+            loader.classList.add('loader-hidden');
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 300);
+        }
+
+        if (document.readyState === 'complete') {
+            setTimeout(hideStartupLoaderFallback, 1500);
+        } else {
+            window.addEventListener('load', () => setTimeout(hideStartupLoaderFallback, 1500));
+        }
+    </script>
+</body>
+</html>
